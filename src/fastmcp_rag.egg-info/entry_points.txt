@@ -1,0 +1,3 @@
+[console_scripts]
+rag-index = ragserver.indexing.ingest:main
+rag-server = ragserver.server:main
