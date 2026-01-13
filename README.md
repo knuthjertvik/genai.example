@@ -2,10 +2,10 @@
 
 En hands-on workshop som dekker de viktigste GenAI-trendene:
 
-| År | Teknologi | Beskrivelse |
-|----|-----------|-------------|
-| 2024 | **RAG** | Retrieval Augmented Generation - snakk med egne dokumenter |
-| 2025 | **MCP** | Model Context Protocol - koble AI til verktøy og API-er |
+| Teknologi | Beskrivelse |
+|-----------|-------------|
+| **RAG** | Retrieval Augmented Generation - snakk med egne dokumenter |
+| **MCP** | Model Context Protocol - koble AI til verktøy og API-er |
 
 ## Kom i gang
 
