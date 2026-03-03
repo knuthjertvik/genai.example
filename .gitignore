@@ -8,7 +8,6 @@ venv/
 
 # PDF-dokumenter lagres lokalt og ikke i git
 # Kjør scripts/build_index.py lokalt, og commit vector_store/ i stedet
-data/sinsenveien_11/
 
 # Streamlit secrets-fil (bruk Streamlit Cloud dashboard i stedet)
 .streamlit/secrets.toml

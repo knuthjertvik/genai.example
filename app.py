@@ -11,6 +11,41 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 
+
+def _render_sources(sources: list, key_prefix: str) -> None:
+    """Render source chips and one download button per unique PDF file."""
+    if not sources:
+        return
+    for src in sources:
+        label = src["label"] if isinstance(src, dict) else src
+        st.markdown(f'<span class="source-tag">{label}</span>', unsafe_allow_html=True)
+
+    # Collect unique PDF files referenced by these sources
+    seen, buttons = set(), []
+    for src in sources:
+        if not isinstance(src, dict):
+            continue
+        path_str = src.get("path", "")
+        if path_str and path_str not in seen:
+            p = Path(path_str)
+            if p.exists():
+                seen.add(path_str)
+                buttons.append(p)
+
+    if buttons:
+        st.write("")
+        cols = st.columns(min(len(buttons), 3))
+        for i, p in enumerate(buttons):
+            with cols[i % 3]:
+                with open(p, "rb") as f:
+                    st.download_button(
+                        label=f"⬇️ {p.name}",
+                        data=f.read(),
+                        file_name=p.name,
+                        mime="application/pdf",
+                        key=f"{key_prefix}_dl_{i}",
+                    )
+
 load_dotenv()
 
 from src.config import CASES, CONFLICT_TOPICS
@@ -33,8 +68,8 @@ st.markdown(
     .source-tag {
         display: inline-block;
         background: #e8edf2;
-        border-radius: 4px;
-        padding: 2px 8px;
+                border-radius: 4px;
+                padding: 2px 8px;
         font-size: 0.8rem;
         color: #4a5568;
         margin: 2px;
@@ -150,13 +185,12 @@ with tab_qa:
         st.session_state.messages = []
 
     # Render existing chat
-    for msg in st.session_state.messages:
+    for idx, msg in enumerate(st.session_state.messages):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
             if msg.get("sources"):
                 with st.expander("📄 Kilder", expanded=False):
-                    for src in msg["sources"]:
-                        st.markdown(f'<span class="source-tag">{src}</span>', unsafe_allow_html=True)
+                    _render_sources(msg["sources"], key_prefix=f"hist_{idx}")
 
     # Chat input
     if prompt := st.chat_input("Hva vil du vite om planforslaget?"):
@@ -165,19 +199,17 @@ with tab_qa:
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Søker i dokumentene..."):
-                result = rag.query(prompt, chat_history=st.session_state.messages[:-1])
-            st.markdown(result["answer"])
-            if result["sources"]:
+            stream, sources = rag.stream_query(prompt, chat_history=st.session_state.messages[:-1])
+            response_text = st.write_stream(stream)
+            if sources:
                 with st.expander("📄 Kilder", expanded=False):
-                    for src in result["sources"]:
-                        st.markdown(f'<span class="source-tag">{src}</span>', unsafe_allow_html=True)
+                    _render_sources(sources, key_prefix="new")
 
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "content": result["answer"],
-                "sources": result["sources"],
+                "content": response_text,
+                "sources": sources,
             }
         )
 
@@ -236,8 +268,7 @@ with tab_conflicts:
 
         if result["sources"]:
             with st.expander("📄 Kildereferanser"):
-                for src in result["sources"]:
-                    st.markdown(f'<span class="source-tag">{src}</span>', unsafe_allow_html=True)
+                _render_sources(result["sources"], key_prefix="conflict")
 
     st.divider()
     st.info(
@@ -336,8 +367,7 @@ with tab_hearing:
 
             if result["sources"]:
                 with st.expander("📄 Dokumenter brukt som grunnlag"):
-                    for src in result["sources"]:
-                        st.markdown(f'<span class="source-tag">{src}</span>', unsafe_allow_html=True)
+                    _render_sources(result["sources"], key_prefix="hearing")
         else:
             st.info("👈 Fyll inn din bekymring til venstre og klikk «Generer høringsinnspill».")
 
@@ -373,9 +403,8 @@ skal behandles av kommunen og besvares i det videre planarbeidet.
 4. **📮 Send inn** – Bruk lenken til Oslo kommunes portal for å sende inn innspillet ditt
 
 ### Om verktøyet
-Dette er et åpent og kritisk analyseverktøy for innbyggere. Svarene er basert
-på saksdokumentene som er lastet opp. Verktøyet er ikke tilknyttet Oslo kommune
-og representerer ikke myndighetenes syn.
+Svarene er basert på saksdokumentene som er lastet opp. Verktøyet er ikke tilknyttet Oslo kommune
+og representerer ikke myndighetenes syn, men utviklet på frivillig basis av Knut Hjertvik.
 """
         )
 

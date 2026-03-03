@@ -10,11 +10,7 @@ CASES: dict[str, dict] = {
             "Planforslag for Sinsenveien 11 i Oslo. "
             "Saken gjelder regulering og berører naboeiendommer i området."
         ),
-        "official_url": (
-            "https://tjenester.oslo.kommune.no/ekstern/veiledere/datadrett/#"
-            "?id=7739&recno=213126&saksnr=202506699"
-            "&gjelderType=BEM_PBE&gjelderTittel=Uttalelse%20-%20"
-        ),
+        "official_url": "https://innsyn.pbe.oslo.kommune.no/sidinmening/main.asp?idnr=2025078414",
         "case_number": "202506699",
         "municipality": "Oslo",
         "data_dir": "data/sinsenveien_11",

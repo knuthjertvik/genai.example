@@ -15,6 +15,7 @@ import argparse
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 # Allow importing from project root
@@ -33,7 +34,7 @@ def build_index(case_key: str) -> None:
     from langchain_openai import AzureOpenAIEmbeddings
     from langchain_chroma import Chroma
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-    import fitz  # PyMuPDF
+    import pymupdf4llm
 
     case = CASES[case_key]
     data_dir = Path(case["data_dir"])
@@ -55,10 +56,15 @@ def build_index(case_key: str) -> None:
 
     console.print(f"[green]Fant {len(pdf_files)} PDF-filer[/green]")
 
-    # Parse PDFs and split into chunks
+    # Parse PDFs and split into chunks.
+    # 800 chars (~200 tokens) fits one regulatory paragraph tightly, giving
+    # focused embeddings that rank precisely against specific fact questions
+    # (§-references, building heights, parking counts, etc.).
+    # pymupdf4llm produces clean \n\n paragraph breaks so the splitter respects
+    # natural boundaries. Rate-limit hits are handled by the retry loop below.
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200,
+        chunk_size=800,
+        chunk_overlap=150,
         separators=["\n\n", "\n", " ", ""],
     )
 
@@ -67,9 +73,19 @@ def build_index(case_key: str) -> None:
 
     for pdf_path in track(pdf_files, description="Leser PDF-filer..."):
         try:
-            doc = fitz.open(str(pdf_path))
-            for page_num, page in enumerate(doc):
-                text = page.get_text().strip()
+            # Derive doc_type from the first subfolder under data_dir.
+            # e.g. data/sinsenveien_11/plandok/xx.pdf  → "plandok"
+            #      data/sinsenveien_11/merknader/xx.pdf → "merknader"
+            #      data/sinsenveien_11/xx.pdf           → "plandokument" (root fallback)
+            relative = pdf_path.relative_to(data_dir)
+            doc_type = relative.parts[0] if len(relative.parts) > 1 else "plandokument"
+
+            # pymupdf4llm preserves tables as markdown, handles multi-column layout,
+            # and produces cleaner text than raw get_text() for regulatory documents.
+            pages = pymupdf4llm.to_markdown(str(pdf_path), page_chunks=True)
+            for page_data in pages:
+                text = (page_data.get("text") or "").strip()
+                page_num = page_data.get("metadata", {}).get("page", 0)
                 if text:
                     chunks = splitter.create_documents(
                         [text],
@@ -78,11 +94,11 @@ def build_index(case_key: str) -> None:
                                 "source": str(pdf_path),
                                 "filename": pdf_path.name,
                                 "page": page_num,
+                                "doc_type": doc_type,
                             }
                         ],
                     )
                     all_chunks.extend(chunks)
-            doc.close()
         except Exception as exc:
             failed.append((pdf_path.name, str(exc)))
 
@@ -95,7 +111,11 @@ def build_index(case_key: str) -> None:
         console.print("[red]Ingen tekst funnet. Sjekk at PDF-filene inneholder lesbar tekst.[/red]")
         return
 
+    from collections import Counter
+    type_counts = Counter(c.metadata["doc_type"] for c in all_chunks)
     console.print(f"[green]Laget {len(all_chunks)} tekstbiter totalt[/green]")
+    for dtype, count in sorted(type_counts.items()):
+        console.print(f"  [dim]{dtype}: {count} biter[/dim]")
 
     # Initialize Azure OpenAI embeddings
     console.print("[blue]Kobler til Azure OpenAI embeddings...[/blue]")
@@ -112,16 +132,46 @@ def build_index(case_key: str) -> None:
     vector_store_dir.mkdir(parents=True)
 
     console.print(f"[blue]Bygger vektordatabase i {vector_store_dir} ...[/blue]")
-    console.print("[dim](Dette kan ta noen minutter for mange dokumenter)[/dim]")
+    console.print("[dim](Dette kan ta noen minutter — rate-limit håndteres automatisk)[/dim]")
 
-    Chroma.from_documents(
-        documents=all_chunks,
-        embedding=embeddings,
-        persist_directory=str(vector_store_dir),
+    from openai import RateLimitError
+
+    BATCH_SIZE = 50  # chunks per embedding call (~50 × 375 tokens = ~18 750 tokens/call)
+    MAX_RETRIES = 6
+    RETRY_WAIT = 65  # seconds — slightly over the 60 s window Azure requires
+
+    # Create an empty collection first, then add in controlled batches.
+    db = Chroma(
         collection_name=case["collection_name"],
+        embedding_function=embeddings,
+        persist_directory=str(vector_store_dir),
     )
 
-    console.print(f"[bold green]✓ Ferdig! {len(all_chunks)} biter indeksert.[/bold green]")
+    total_batches = (len(all_chunks) + BATCH_SIZE - 1) // BATCH_SIZE
+    indexed = 0
+
+    for batch_num, start in enumerate(range(0, len(all_chunks), BATCH_SIZE), 1):
+        batch = all_chunks[start : start + BATCH_SIZE]
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                db.add_documents(batch)
+                indexed += len(batch)
+                console.print(
+                    f"  [green]Batch {batch_num}/{total_batches}[/green] "
+                    f"({indexed}/{len(all_chunks)} biter)"
+                )
+                break
+            except RateLimitError:
+                if attempt == MAX_RETRIES:
+                    console.print(f"[red]Maks forsøk nådd for batch {batch_num}. Avbryter.[/red]")
+                    raise
+                console.print(
+                    f"  [yellow]Rate limit nådd (batch {batch_num}, forsøk {attempt}/{MAX_RETRIES}). "
+                    f"Venter {RETRY_WAIT}s...[/yellow]"
+                )
+                time.sleep(RETRY_WAIT)
+
+    console.print(f"[bold green]✓ Ferdig! {indexed} biter indeksert.[/bold green]")
     console.print(f"[green]Lagret i: {vector_store_dir}[/green]")
     console.print()
     console.print("[yellow]Neste steg – commit og push vector store til git:[/yellow]")
