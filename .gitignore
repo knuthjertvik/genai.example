@@ -1,1 +1,13 @@
 .env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.DS_Store
+
+# PDF-dokumenter lagres lokalt og ikke i git
+# Kjør scripts/build_index.py lokalt, og commit vector_store/ i stedet
+
+# Streamlit secrets-fil (bruk Streamlit Cloud dashboard i stedet)
+.streamlit/secrets.toml
