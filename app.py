@@ -225,7 +225,7 @@ with tab_qa:
             "Hvilken byggehøyde er foreslått?",
             "Hva sier planforslaget om parkering?",
             "Hvordan påvirkes naboeiendommene?",
-            "Hva er høringsfristen?",
+            "Når er høringsfristen?",
             "Hva har støyanalysen avdekket?",
             "Hvem har gjennomført vegetasjonskartlegging?",
             "Oppsummer de geotekniske undersøkelsene som er gjort",
@@ -289,8 +289,7 @@ with tab_hearing:
             "Din bekymring eller merknad",
             height=160,
             placeholder=(
-                "F.eks: Jeg er bekymret for at det nye bygget vil kaste skygge på "
-                "hagen og terrassen min store deler av dagen, og at dette ikke er "
+                "F.eks: Jeg er bekymret for at det nye bygget vil kaste mot terrassen min store deler av dagen, og at dette ikke er "
                 "tilstrekkelig utredet i planforslaget..."
             ),
             key="hearing_concern",
