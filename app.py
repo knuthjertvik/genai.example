@@ -48,7 +48,7 @@ def _render_sources(sources: list, key_prefix: str) -> None:
 
 load_dotenv()
 
-from src.config import CASES, CONFLICT_TOPICS
+from src.config import CASES
 from src.rag import RAGSystem, vector_store_exists
 
 # ---------------------------------------------------------------------------
@@ -161,10 +161,9 @@ except Exception as exc:
 # ---------------------------------------------------------------------------
 st.title(f"📋 {case_cfg['name']}")
 
-tab_qa, tab_conflicts, tab_hearing, tab_about = st.tabs(
+tab_qa, tab_hearing, tab_about = st.tabs(
     [
         "💬 Still spørsmål",
-        "⚠️ Konflikter",
         "✏️ Høringsinnspill",
         "📎 Om saken",
     ]
@@ -226,11 +225,18 @@ with tab_qa:
             "Hvilken byggehøyde er foreslått?",
             "Hva sier planforslaget om parkering?",
             "Hvordan påvirkes naboeiendommene?",
-            "Hva er høringsfristen?",
+            "Når er høringsfristen?",
+            "Hva har støyanalysen avdekket?",
+            "Hvem har gjennomført vegetasjonskartlegging?",
+            "Oppsummer de geotekniske undersøkelsene som er gjort",
+            "Hva sier ROS-analysen?",
+            "Hva er planens konsekvenser for overvann og VA?",
+            "Hva sier trafikkanalysen?",
+            "Hva inneholder mikroklimaanalysen?",
         ]
-        cols = st.columns(len(starter_questions))
-        for col, question in zip(cols, starter_questions):
-            with col:
+        cols = st.columns(3)
+        for i, question in enumerate(starter_questions):
+            with cols[i % 3]:
                 if st.button(question, key=f"starter_{question}", use_container_width=True):
                     st.session_state.messages.append({"role": "user", "content": question})
                     with st.spinner("Søker..."):
@@ -244,42 +250,30 @@ with tab_qa:
                     )
                     st.rerun()
 
-
-# ===========================================================================
-# TAB 2 – CONFLICT ANALYSIS
-# ===========================================================================
-with tab_conflicts:
-    st.subheader("Konflikter og problemstillinger")
-    st.caption(
-        "Velg et tema for å se en AI-drevet analyse av potensielle konflikter "
-        "basert på saksdokumentene."
-    )
-
-    topic = st.selectbox("Velg tema", CONFLICT_TOPICS, key="conflict_topic")
-
-    if st.button("🔍 Analyser tema", type="primary", key="analyze_btn"):
-        with st.spinner(f"Analyserer «{topic}»..."):
-            result = rag.analyze_conflicts(topic)
-
-        st.markdown(
-            f'<div class="warning-box">{result["answer"]}</div>',
-            unsafe_allow_html=True,
-        )
-
-        if result["sources"]:
-            with st.expander("📄 Kildereferanser"):
-                _render_sources(result["sources"], key_prefix="conflict")
-
-    st.divider()
-    st.info(
-        "💡 **Tips:** Analysen viser hva dokumentene sier om temaet og peker på "
-        "mulige konfliktpunkter. Bruk fanen «Høringsinnspill» for å formulere "
-        "dine egne merknader."
-    )
+        # Document table of contents
+        st.divider()
+        st.markdown("**📚 Plandokumenter i denne saken**")
+        st.caption("Klikk på et dokument for å laste det ned, eller la deg inspirere til å stille spørsmål.")
+        plandok_dir = Path(case_cfg["data_dir"]) / "plandok"
+        if plandok_dir.exists():
+            pdf_files = sorted(plandok_dir.glob("*.pdf"))
+            if pdf_files:
+                doc_cols = st.columns(2)
+                for i, p in enumerate(pdf_files):
+                    with doc_cols[i % 2]:
+                        with open(p, "rb") as f:
+                            st.download_button(
+                                label=p.stem.replace("_", " "),
+                                data=f.read(),
+                                file_name=p.name,
+                                mime="application/pdf",
+                                key=f"toc_dl_{i}",
+                                use_container_width=True,
+                            )
 
 
 # ===========================================================================
-# TAB 3 – HEARING RESPONSE GENERATOR
+# TAB 2 – HEARING RESPONSE GENERATOR
 # ===========================================================================
 with tab_hearing:
     st.subheader("Skriv høringsinnspill")
@@ -295,8 +289,7 @@ with tab_hearing:
             "Din bekymring eller merknad",
             height=160,
             placeholder=(
-                "F.eks: Jeg er bekymret for at det nye bygget vil kaste skygge på "
-                "hagen og terrassen min store deler av dagen, og at dette ikke er "
+                "F.eks: Jeg er bekymret for at det nye bygget vil kaste mot terrassen min store deler av dagen, og at dette ikke er "
                 "tilstrekkelig utredet i planforslaget..."
             ),
             key="hearing_concern",
