@@ -396,8 +396,12 @@ skal behandles av kommunen og besvares i det videre planarbeidet.
 4. **📮 Send inn** – Bruk lenken til Oslo kommunes portal for å sende inn innspillet ditt
 
 ### Om verktøyet
-Svarene er basert på saksdokumentene som er lastet opp. Verktøyet er ikke tilknyttet Oslo kommune
-og representerer ikke myndighetenes syn, men utviklet på frivillig basis av Knut Hjertvik.
+Svarene er basert på saksdokumentene som er lastet opp og skal refere til dokument og sidetall. 
+Verktøyet er utviklet på frivillig basis av nabo til prosjektet.
+Målet er å senke terskelen for innbyggere å engasjere seg i plansaker som påvirker 
+nærmiljøet deres, og inspisere til å bruke KI som støtte.
+Denne løsningen er ikke perfekt, betaler du for abonnemenet på en de størrre KI-tjenestene
+er det etter mitt syn en bedre løsning. Bruk heller det!
 """
         )
 
